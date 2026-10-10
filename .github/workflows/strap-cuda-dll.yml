@@ -1,0 +1,41 @@
+name: Strap ggml-cuda (CUDA 13.3, x64)
+
+# Builds only ggml-cuda.dll for Windows x64 with CUDA 13.3, with the same configuration as release.yml's
+# windows-cuda job, and uploads it as an artifact. It drops into an unchanged prism-b10754 Windows build.
+on:
+  workflow_dispatch:
+
+jobs:
+  cuda:
+    runs-on: windows-2022
+    steps:
+      - name: Clone
+        uses: actions/checkout@v6
+
+      - name: Install Cuda Toolkit
+        uses: ./.github/actions/windows-setup-cuda
+        with:
+          cuda_version: '13.3'
+          cuda_arch: x64
+
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S . -B build -G "Ninja Multi-Config" ^
+            -DGGML_BACKEND_DL=ON ^
+            -DGGML_NATIVE=OFF ^
+            -DGGML_CPU=OFF ^
+            -DGGML_CUDA=ON ^
+            -DLLAMA_BUILD_BORINGSSL=ON
+          set /A NINJA_JOBS=%NUMBER_OF_PROCESSORS%-1
+          cmake --build build --config Release -j %NINJA_JOBS% --target ggml-cuda
+
+      - name: Upload ggml-cuda.dll
+        uses: actions/upload-artifact@v6
+        with:
+          name: ggml-cuda-win-cuda-13.3-x64
+          path: build/bin/Release/ggml-cuda.dll
